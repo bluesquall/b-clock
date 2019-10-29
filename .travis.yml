@@ -1,0 +1,29 @@
+language: c
+dist: bionic
+sudo: false
+cache:
+  apt: true
+#   directories:
+#     - ~/.arduino15/packages
+addons:
+  apt:
+    update: true
+    packages:
+      - curl
+      - python3
+before_install:
+  - curl -fsSL https://raw.githubusercontent.com/arduino/arduino-cli/master/install.sh | sh
+
+# next step assumes Adafruit JSON url is listed in arduino-cli.yaml
+install:
+  - arduino-cli core update-index
+#  - arduino-cli core install arduino:adafruit:nrf52
+  - arduino-cli board listall
+  - arduino-cli lib install "Adafruit NeoPixel"
+  - arduino-cli lib install "Adafruit NeoMatrix"
+  - arduino-cli lib install "Adafruit GFX"
+  - pip3 install --user adafruit-nrfutil && adafruit-nrfutil version
+script:
+  - arduino-cli compile --fqbn arduino:adafruit:nrf52 BClock
+after_script:
+  - echo "done"
