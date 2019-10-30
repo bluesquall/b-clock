@@ -12,7 +12,10 @@ addons:
       - curl
       - python3
 before_install:
-  - curl -fsSL https://raw.githubusercontent.com/arduino/arduino-cli/master/install.sh | sh
+  - curl -fsSL \
+    https://raw.githubusercontent.com/arduino/arduino-cli/master/install.sh \
+    | BINDIR=$HOME/bin sh
+  - export PATH="$PATH:$HOME/bin"
 
 # next step assumes Adafruit JSON url is listed in arduino-cli.yaml
 install:
