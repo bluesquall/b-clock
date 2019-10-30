@@ -22,7 +22,7 @@ install:
   - arduino-cli board listall
   - arduino-cli lib install "Adafruit NeoPixel"
   - arduino-cli lib install "Adafruit NeoMatrix"
-  - arduino-cli lib install "Adafruit GFX"
+  - arduino-cli lib install "Adafruit GFX Library"
   - pip3 install --user adafruit-nrfutil && adafruit-nrfutil version
 script:
   - arduino-cli compile --fqbn adafruit:nrf52:feather52832 BClock
