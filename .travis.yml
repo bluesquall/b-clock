@@ -23,7 +23,7 @@ install:
   - arduino-cli lib install "Adafruit NeoPixel"
   - arduino-cli lib install "Adafruit NeoMatrix"
   - arduino-cli lib install "Adafruit GFX Library"
-  - arduino-cli lib install "RTClib by Adafruit"
+  - arduino-cli lib install "RTClib" # by Adafruit
   - pip3 install --user --upgrade pip
   - pip3 install --user setuptools
   - pip3 install --user adafruit-nrfutil && adafruit-nrfutil version
