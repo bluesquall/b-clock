@@ -36,5 +36,6 @@ script:
   - arduino-cli compile --fqbn adafruit:nrf52:feather52832 dual_bleuart
   - arduino-cli compile --fqbn adafruit:nrf52:feather52832 neomatrix
   - arduino-cli compile --fqbn adafruit:nrf52:feather52832 neopixel
+  - arduino-cli compile --fqbn adafruit:nrf52:feather52832 strandtest
 after_script:
   - echo "done"
