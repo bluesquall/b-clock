@@ -29,6 +29,12 @@ install:
   - pip3 install --user adafruit-nrfutil && adafruit-nrfutil version
 script:
   - arduino-cli compile --fqbn adafruit:nrf52:feather52832 BClock
+  - cd examples
+  - arduino-cli compile --fqbn adafruit:nrf52:feather52832 bleuart
+  - arduino-cli compile --fqbn adafruit:nrf52:feather52832 blinky
   - arduino-cli compile --fqbn adafruit:nrf52:feather52832 ds3231
+  - arduino-cli compile --fqbn adafruit:nrf52:feather52832 dual_bleuart
+  - arduino-cli compile --fqbn adafruit:nrf52:feather52832 neomatrix
+  - arduino-cli compile --fqbn adafruit:nrf52:feather52832 neopixel
 after_script:
   - echo "done"
