@@ -36,6 +36,12 @@
 *.x86_64
 *.hex
 
+# Compressed (releases, firmware, docs, etc)
+*.zip
+*.gz
+*.bz2
+*.xz
+
 # Debug files
 *.dSYM/
 *.su
