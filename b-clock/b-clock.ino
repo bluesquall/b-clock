@@ -24,7 +24,6 @@ RTC_DS3231 rtc;
 
 
 DateTime alarmTime;
-String cmd = "";
 
 // setup() function -- runs once at startup --------------------------------
 
@@ -66,33 +65,23 @@ void loop() {
   serialPrintTemperature();
 
   if( Serial.available() > 0 ) {
-    int nbytes = serialReadCmd( CMD_MAX_LENGTH );
-    Serial.print("rx command: [");
+    String cmd = Serial.readString();
+    cmd.trim();
+    Serial.print("rx command: `");
     Serial.print(cmd);
-    Serial.println("]");
-    parseCommand();
+    Serial.println("`");
+    parseCommand(cmd);
   } else {
     theaterChaseRainbow(50); // Rainbow-enhanced theaterChase variant
   }
 }
 
 // parseCommand
-void parseCommand() {
+void parseCommand(String cmd) {
+    Serial.print("parsing command: `");
+    Serial.print(cmd);
+    Serial.println("`");
   alarmTime = rtc.now() + 5;    
-}
-
-// serialReadCmd -- read into global cmd from Serial
-int serialReadCmd( int len ) {
-  while( ( Serial.available() > 0 ) && ( cmd.length() < CMD_MAX_LENGTH ) ) {
-    cmd = "";  // clear the last command
-    char c = Serial.read();
- //   if( c == '\n' ) {
- //     break;
- //   } else {
-      cmd += c;
- //   }
-  }
-  return cmd.length();
 }
 
 // serialPrintDateTime
