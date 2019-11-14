@@ -15,12 +15,16 @@
 
 #define LED_PIN    30
 #define LED_COUNT 4*8
+#define CMD_MAX_LENGTH 64
 
 // Declare our NeoPixel strip object:
 Adafruit_NeoPixel strip(LED_COUNT, LED_PIN, NEO_GRB + NEO_KHZ800);
 // Declare the DS3231 Realtime Clock object
 RTC_DS3231 rtc;
 
+
+DateTime alarmTime;
+String cmd = "";
 
 // setup() function -- runs once at startup --------------------------------
 
@@ -61,13 +65,35 @@ void loop() {
   serialPrintDateTime(now);
   serialPrintTemperature();
 
-  if( 0 ) {
-    Serial.println("Do something useful.");
+  if( Serial.available() > 0 ) {
+    int nbytes = serialReadCmd( CMD_MAX_LENGTH );
+    Serial.print("rx command: [");
+    Serial.print(cmd);
+    Serial.println("]");
+    parseCommand();
   } else {
-    strandtest(); // run the main loop from the strandtest example
+    theaterChaseRainbow(50); // Rainbow-enhanced theaterChase variant
   }
 }
 
+// parseCommand
+void parseCommand() {
+  alarmTime = rtc.now() + 5;    
+}
+
+// serialReadCmd -- read into global cmd from Serial
+int serialReadCmd( int len ) {
+  while( ( Serial.available() > 0 ) && ( cmd.length() < CMD_MAX_LENGTH ) ) {
+    cmd = "";  // clear the last command
+    char c = Serial.read();
+ //   if( c == '\n' ) {
+ //     break;
+ //   } else {
+      cmd += c;
+ //   }
+  }
+  return cmd.length();
+}
 
 // serialPrintDateTime
 
