@@ -6,12 +6,12 @@ RTC_DS3231 rtc;
 char daysOfTheWeek[7][12] = {"Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"};
 
 void setup () {
-
-#ifndef ESP8266
-  while (!Serial); // for Leonardo/Micro/Zero
-#endif
-
   Serial.begin(9600);
+
+  while (!Serial) delay(10);   // for nrf52840 with native usb
+
+  Serial.println("Bluefruit52 DS3231 RTC Example");
+  Serial.println("------------------------------\n");
 
   delay(3000); // wait for console opening
 
@@ -31,6 +31,8 @@ void setup () {
 }
 
 void loop () {
+    digitalToggle(LED_RED);  // Toggle LED to show activity
+
     DateTime now = rtc.now();
 
     Serial.print(now.year(), DEC);
