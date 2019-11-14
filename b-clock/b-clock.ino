@@ -22,6 +22,7 @@ Adafruit_NeoPixel strip(LED_COUNT, LED_PIN, NEO_GRB + NEO_KHZ800);
 RTC_DS3231 rtc;
 char display = 'B';
 DateTime alarm;
+int8_t utc_offset = -8;
 // TODO: add a verbose flag to enable/disable most of the Serial printing
 
 
@@ -78,9 +79,13 @@ void loop() {
   if (now < alarm) {
     countdown(alarm);
   } else if ( now.unixtime() - alarm.unixtime() < LED_COUNT ) {
-    strip.clear();
-    strip.show();
-    colorWipe(strip.Color( 255, 140, 0), 1000); // dark orange
+    strip.setBrightness(127);
+    colorWipe(strip.Color( 0, 0, 0), 100); // off
+    colorWipe(strip.Color( 255, 140, 0), 100); // dark orange
+  } else if ( now.unixtime() - alarm.unixtime() < 60 ) {
+    strip.setBrightness(255);
+    colorWipe(strip.Color( 0, 0, 0), 0); // off
+    colorWipe(strip.Color( 255, 0, 0), 0); // red
   } else {
     switch( display ) {
       case 'B': // binary
@@ -90,10 +95,11 @@ void loop() {
         rainbow(1);
         break;
       case 'T': // strandtest
+        strandtest();
+        break;
+      default:
         Serial.print("unrecognised default display type");
         Serial.println(display);
-        strandtest();
-      default:
         rainbow(1);
     }
   }
@@ -147,8 +153,10 @@ void parseCommand(String cmd) {
     case 'E': // set Epoch time
       rtc.adjust(DateTime(a.toInt()));
       break;
-    case 'O': // set UTC offset
-      rtc.adjust(DateTime(rtc.now().unixtime() + a.toInt() * 3600));
+    case 'U': // set UTC offset
+      rtc.adjust(DateTime(rtc.now().unixtime() - utc_offset * 3600));
+      utc_offset = a.toInt();
+      rtc.adjust(DateTime(rtc.now().unixtime() + utc_offset * 3600));
       break;
     case 'D': // set (string) date e.g.: `Nov 15 2019`
       rtc.adjust(DateTime(a.c_str(), rtc.now().timestamp(DateTime::TIMESTAMP_TIME).c_str()));
@@ -175,8 +183,10 @@ void parseCommand(String cmd) {
 void serialPrintDateTime( DateTime ts ) {
   char iso8601[] = "YYYY-MM-DD hh:mm:ss";
   Serial.print(ts.toString(iso8601));
-  Serial.print("\t Unix epoch seconds: ");
-  Serial.println(ts.unixtime());
+  Serial.print(" (UTC ");
+  Serial.print(utc_offset);
+  Serial.print(")\t Unix epoch seconds: ");
+  Serial.println(ts.unixtime() - utc_offset * 3600);
 }
 
 void serialPrintTemperature() {
