@@ -15,15 +15,14 @@
 
 #define LED_PIN    30
 #define LED_COUNT 4*8
-#define CMD_MAX_LENGTH 64
 
 // Declare our NeoPixel strip object:
 Adafruit_NeoPixel strip(LED_COUNT, LED_PIN, NEO_GRB + NEO_KHZ800);
 // Declare the DS3231 Realtime Clock object
 RTC_DS3231 rtc;
+char display = 'B';
+DateTime alarm;
 
-
-DateTime alarmTime;
 
 // setup() function -- runs once at startup --------------------------------
 
@@ -53,6 +52,7 @@ void post() {
     rtc.adjust(DateTime(F(__DATE__), F(__TIME__)));
     serialPrintDateTime(rtc.now());
   }
+  alarm = rtc.now() + TimeSpan(0,0,0,5);
 }
 
 // loop() function -- runs repeatedly as long as board is on ---------------
@@ -71,33 +71,94 @@ void loop() {
     Serial.print(cmd);
     Serial.println("`");
     parseCommand(cmd);
-  } else {
-    theaterChaseRainbow(50); // Rainbow-enhanced theaterChase variant
   }
+
+  
+  if (now < alarm) {
+    countdown(alarm);
+  } else if ( (now - alarm).seconds() < 1 ) {
+    strip.clear();
+    strip.show();
+  } else if ( now < alarm + TimeSpan(LED_COUNT) ) {
+    uint32_t orange = strip.Color(255,140,0); // TODO constant
+    strip.setPixelColor( 0, orange);
+    strip.setPixelColor( (now - alarm).seconds(), orange);
+    strip.show();
+    delay(1000); // wait a second
+  } else {
+    switch( display ) {
+      case 'B': // binary
+        binary(now);
+        break;
+      case 'R':
+        theaterChaseRainbow(16); // Rainbow-enhanced theaterChase variant
+      case 'T': // strandtest
+      default:
+        strandtest();
+    }
+  }
+}
+
+// countdown
+void countdown( DateTime t ) {
+  Serial.print("counting down to: ");
+  serialPrintDateTime(t);
+  colorWipe(strip.Color(  0,   127, 127), 32); // TODO constant
+  colorWipe(strip.Color(  0,   0, 0), 32); // off  
+}
+
+// binary
+void binary( DateTime t ) {
+  uint8_t R = t.hour()*255/24;
+  uint8_t G = t.minute()*255/60;
+  uint8_t B = t.second()*255/60;
+  Serial.print("displaying (pseudo) binary color representation of: ");
+  char hms[] = "hh:mm:ss";
+  Serial.print(t.toString(hms));
+  Serial.print(" R,G,B: ");
+  Serial.print( R );
+  Serial.print( "," );
+  Serial.print( G );
+  Serial.print( "," );
+  Serial.println( B );
+  colorWipe(strip.Color(R, G, B), 32);
 }
 
 // parseCommand
 void parseCommand(String cmd) {
-    Serial.print("parsing command: `");
-    Serial.print(cmd);
-    Serial.println("`");
-  alarmTime = rtc.now() + 5;    
+  Serial.print("parsing command: `");
+  Serial.print(cmd);
+  Serial.println("`");
+
+  char f = cmd.charAt(0);
+  int a = cmd.substring(2).toInt();
+  // TODO: these ^ two lines are brittle
+  
+  Serial.print("function: ");
+  Serial.print(f);
+  Serial.print("\t argument: ");
+  Serial.print(a);
+  Serial.println("");
+
+  switch( f ) {
+    case 'z': // snooze
+      alarm = rtc.now() + TimeSpan(0,0,a,0);
+      break;
+    case 'E': // set Epoch time
+      rtc.adjust(DateTime());
+      break;
+    default:
+      Serial.print("unrecognized function: `");
+      Serial.print(f);
+      Serial.println('`');
+  }
 }
 
 // serialPrintDateTime
 
 void serialPrintDateTime( DateTime ts ) {
-  Serial.print(ts.year(), DEC);
-  Serial.print("-");
-  Serial.print(ts.month(), DEC);
-  Serial.print("-");
-  Serial.print(ts.day(), DEC);
-  Serial.print(" ");
-  Serial.print(ts.hour(), DEC);
-  Serial.print(":");
-  Serial.print(ts.minute(), DEC);
-  Serial.print(":");
-  Serial.print(ts.second(), DEC);
+  char iso8601[] = "YYYY-MM-DD hh:mm:ss";
+  Serial.print(ts.toString(iso8601));
   Serial.print("\t Unix epoch seconds: ");
   Serial.println(ts.unixtime());
 }
