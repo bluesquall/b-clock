@@ -11,33 +11,86 @@
 // (Skipping these may work OK on your workbench but can fail in the field)
 
 #include <Adafruit_NeoPixel.h>
+#include <RTClib.h>
 
 #define LED_PIN    30
 #define LED_COUNT 4*8
 
 // Declare our NeoPixel strip object:
 Adafruit_NeoPixel strip(LED_COUNT, LED_PIN, NEO_GRB + NEO_KHZ800);
+// Declare the DS3231 Realtime Clock object
+RTC_DS3231 rtc;
+
 
 // setup() function -- runs once at startup --------------------------------
 
 void setup() {
   strip.begin();           // INITIALIZE NeoPixel strip object (REQUIRED)
   strip.show();            // Turn OFF all pixels ASAP
+  Serial.begin(9600);      // Start UART for debugging, etc.
+  while (!Serial) delay(10);   // for nrf52840 with native usb
+  Serial.println("Bluefruit nRF52832 b-clock");
+  Serial.println("**************************\n");
   post();                  // Power On Self Test
 }
 
+// post() function -- power-on self-test
+
+void post() {
+  Serial.println("b-clock power-on self-test");
+  strip.setBrightness(13); // Set BRIGHTNESS to about 1/5 (max = 255)
+  rainbow(1);
+  if (! rtc.begin()) {
+    Serial.println("Couldn't find RTC");
+    while (1);
+  }
+  if (rtc.lostPower()) {
+    Serial.println("RTC lost power -- setting to sketch compilation time");
+    // following line sets the RTC to the date & time this sketch was compiled
+    rtc.adjust(DateTime(F(__DATE__), F(__TIME__)));
+    serialPrintDateTime(rtc.now());
+  }
+}
 
 // loop() function -- runs repeatedly as long as board is on ---------------
 
 void loop() {
-  strip.setBrightness(25); // Set BRIGHTNESS to about 1/5 (max = 255)
-  strandtest(); // power-on self-test
+  digitalToggle(LED_RED);  // Toggle LED to show activity
+
+  DateTime now = rtc.now();
+  serialPrintDateTime(now);
+  serialPrintTemperature();
+
+  if( 0 ) {
+    Serial.println("Do something useful.");
+  } else {
+    strandtest(); // run the main loop from the strandtest example
+  }
 }
 
-// post() function -- power-on self-test
-void post() {
-  strip.setBrightness(13); // Set BRIGHTNESS to about 1/5 (max = 255)
-  rainbow(10);
+
+// serialPrintDateTime
+
+void serialPrintDateTime( DateTime ts ) {
+  Serial.print(ts.year(), DEC);
+  Serial.print("-");
+  Serial.print(ts.month(), DEC);
+  Serial.print("-");
+  Serial.print(ts.day(), DEC);
+  Serial.print(" ");
+  Serial.print(ts.hour(), DEC);
+  Serial.print(":");
+  Serial.print(ts.minute(), DEC);
+  Serial.print(":");
+  Serial.print(ts.second(), DEC);
+  Serial.print("\t Unix epoch seconds: ");
+  Serial.println(ts.unixtime());
+}
+
+void serialPrintTemperature() {
+  Serial.print("Temperature: ");
+  Serial.print(rtc.getTemperature());
+  Serial.println(" C");
 }
 
 // strandtest() function -- keep for testing
