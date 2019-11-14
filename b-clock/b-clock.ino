@@ -22,6 +22,7 @@ Adafruit_NeoPixel strip(LED_COUNT, LED_PIN, NEO_GRB + NEO_KHZ800);
 RTC_DS3231 rtc;
 char display = 'B';
 DateTime alarm;
+// TODO: add a verbose flag to enable/disable most of the Serial printing
 
 
 // setup() function -- runs once at startup --------------------------------
@@ -40,7 +41,7 @@ void setup() {
 
 void post() {
   Serial.println("b-clock power-on self-test");
-  strip.setBrightness(13); // Set BRIGHTNESS to about 1/5 (max = 255)
+  strip.setBrightness(8); // Set BRIGHTNESS low (max = 255)
   rainbow(1);
   if (! rtc.begin()) {
     Serial.println("Couldn't find RTC");
@@ -76,25 +77,24 @@ void loop() {
   
   if (now < alarm) {
     countdown(alarm);
-  } else if ( (now - alarm).seconds() < 1 ) {
+  } else if ( now.unixtime() - alarm.unixtime() < LED_COUNT ) {
     strip.clear();
     strip.show();
-  } else if ( now < alarm + TimeSpan(LED_COUNT) ) {
-    uint32_t orange = strip.Color(255,140,0); // TODO constant
-    strip.setPixelColor( 0, orange);
-    strip.setPixelColor( (now - alarm).seconds(), orange);
-    strip.show();
-    delay(1000); // wait a second
+    colorWipe(strip.Color( 255, 140, 0), 1000); // dark orange
   } else {
     switch( display ) {
       case 'B': // binary
         binary(now);
         break;
       case 'R':
-        theaterChaseRainbow(16); // Rainbow-enhanced theaterChase variant
+        rainbow(1);
+        break;
       case 'T': // strandtest
-      default:
+        Serial.print("unrecognised default display type");
+        Serial.println(display);
         strandtest();
+      default:
+        rainbow(1);
     }
   }
 }
@@ -131,7 +131,7 @@ void parseCommand(String cmd) {
   Serial.println("`");
 
   char f = cmd.charAt(0);
-  int a = cmd.substring(2).toInt();
+  String a = cmd.substring(2);
   // TODO: these ^ two lines are brittle
   
   Serial.print("function: ");
@@ -142,10 +142,26 @@ void parseCommand(String cmd) {
 
   switch( f ) {
     case 'z': // snooze
-      alarm = rtc.now() + TimeSpan(0,0,a,0);
+      alarm = rtc.now() + TimeSpan(0,0,a.toInt(),0);
       break;
     case 'E': // set Epoch time
-      rtc.adjust(DateTime());
+      rtc.adjust(DateTime(a.toInt()));
+      break;
+    case 'O': // set UTC offset
+      rtc.adjust(DateTime(rtc.now().unixtime() + a.toInt() * 3600));
+      break;
+    case 'D': // set (string) date e.g.: `Nov 15 2019`
+      rtc.adjust(DateTime(a.c_str(), rtc.now().timestamp(DateTime::TIMESTAMP_TIME).c_str()));
+      break;
+    case 'T': // set (string) time e.g: `14:31:42`
+      rtc.adjust(DateTime(rtc.now().timestamp(DateTime::TIMESTAMP_DATE).c_str(), a.c_str()));
+      break;      
+    case 'd':
+      a.toUpperCase();
+      display = a.charAt(0); // set default display type
+      break;
+    case 'b':
+      strip.setBrightness(a.toInt()); // Set BRIGHTNESS (max = 255)
       break;
     default:
       Serial.print("unrecognized function: `");
