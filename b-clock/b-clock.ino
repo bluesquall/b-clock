@@ -65,7 +65,7 @@ void setup() {
 void post() {
   digitalWrite(LED_RED, HIGH);
   Serial.println("b-clock power-on self-test");
-  strip.setBrightness(8); // Set BRIGHTNESS low (max = 255)
+  strip.setBrightness(brightness); // Set BRIGHTNESS low (max = 255)
   rainbow(1);
   if (! rtc.begin()) {
     Serial.println("Couldn't find RTC");
@@ -124,7 +124,7 @@ void loop() {
     Serial.print(cmd);
     Serial.println("`");
     parseCommand(cmd);
-      digitalWrite(LED_RED, LOW);
+    digitalWrite(LED_RED, LOW);
   }
 
   if( bleuart.available() ) {
@@ -145,15 +145,15 @@ void loop() {
   }
   
   if (now < alarm) {
-    strip.setBrightness(3); // Set BRIGHTNESS low (max = 255)
+    strip.setBrightness(brightness); // Set BRIGHTNESS low (max = 255)
     countdown(alarm);
   } else if ( now.unixtime() - alarm.unixtime() < LED_COUNT ) {
     colorWipe(strip.Color( 0, 0, 0), STANDARD_DELAY); // off
-    strip.setBrightness(64);
+    strip.setBrightness(3*brightness);
     colorWipe(strip.Color( 255, 140, 0), STANDARD_DELAY); // dark orange
   } else if ( now.unixtime() - alarm.unixtime() < 60 ) {
     colorWipe(strip.Color( 0, 0, 0), 0); // off
-    strip.setBrightness(128);
+    strip.setBrightness(9*brightness);
     colorWipe(strip.Color( 255, 0, 0), 0); // red
   } else {
     strip.setBrightness(brightness); // Set BRIGHTNESS low (max = 255)
