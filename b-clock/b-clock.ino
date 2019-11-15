@@ -1,28 +1,29 @@
-// A basic everyday NeoPixel strip test program.
+// a bluetooth-enabled alarm clock with NeoPixels
 
-// NEOPIXEL BEST PRACTICES for most reliable operation:
-// - Add 1000 uF CAPACITOR between NeoPixel strip's + and - connections.
-// - MINIMIZE WIRING LENGTH between microcontroller board and first pixel.
-// - NeoPixel strip's DATA-IN should pass through a 300-500 OHM RESISTOR.
-// - AVOID connecting NeoPixels on a LIVE CIRCUIT. If you must, ALWAYS
-//   connect GROUND (-) first, then +, then data.
-// - When using a 3.3V microcontroller with a 5V-powered NeoPixel strip,
-//   a LOGIC-LEVEL CONVERTER on the data line is STRONGLY RECOMMENDED.
-// (Skipping these may work OK on your workbench but can fail in the field)
-
+#include <bluefruit.h>
+#include <Adafruit_LittleFS.h>
+#include <InternalFileSystem.h>
 #include <Adafruit_NeoPixel.h>
 #include <RTClib.h>
 
 #define LED_PIN    30
 #define LED_COUNT 4*8
 
-// Declare our NeoPixel strip object:
+#define STANDARD_DELAY 32 // milliseconds
+
+BLEDfu  bledfu;  // OTA DFU service
+BLEDis  bledis;  // device information
+BLEUart bleuart; // uart over ble
+BLEBas  blebas;  // battery
 Adafruit_NeoPixel strip(LED_COUNT, LED_PIN, NEO_GRB + NEO_KHZ800);
-// Declare the DS3231 Realtime Clock object
 RTC_DS3231 rtc;
+
+
+// GLOBAL variables
 char display = 'B';
-DateTime alarm;
+DateTime alarm = DateTime( 0 );
 int8_t utc_offset = -8;
+
 // TODO: add a verbose flag to enable/disable most of the Serial printing
 
 
@@ -33,8 +34,27 @@ void setup() {
   strip.show();            // Turn OFF all pixels ASAP
   Serial.begin(9600);      // Start UART for debugging, etc.
   while (!Serial) delay(10);   // for nrf52840 with native usb
-  Serial.println("Bluefruit nRF52832 b-clock");
-  Serial.println("**************************\n");
+  Serial.println("Bluefruit Feather nRF52832 b-clock");
+  Serial.println("**********************************\n");
+  Serial.println("Please use Adafruit's Bluefruit LE app to connect in UART mode\n");
+
+  Bluefruit.autoConnLed(true);
+  Bluefruit.configPrphBandwidth(BANDWIDTH_MAX);
+  Bluefruit.begin();
+  Bluefruit.setTxPower(4);    // Check bluefruit.h for supported values
+  Bluefruit.setName("b-clock");
+  // To be consistent OTA DFU should be added first if it exists
+  bledfu.begin();
+
+  // Configure and Start Device Information Service
+  bledis.setManufacturer("Adafruit Industries");
+  bledis.setModel("b-clock based on Bluefruit Feather nRF52832");
+  bledis.begin();
+  bleuart.begin();
+  blebas.begin();
+  blebas.write(100); // TODO: check actual battery voltage
+  startAdv();
+
   post();                  // Power On Self Test
 }
 
@@ -57,6 +77,34 @@ void post() {
   alarm = rtc.now() + TimeSpan(0,0,0,5);
 }
 
+
+void startAdv(void) {
+  // Advertising packet
+  Bluefruit.Advertising.addFlags(BLE_GAP_ADV_FLAGS_LE_ONLY_GENERAL_DISC_MODE);
+  Bluefruit.Advertising.addTxPower();
+
+  // Include bleuart 128-bit uuid
+  Bluefruit.Advertising.addService(bleuart);
+
+  // Secondary Scan Response packet (optional)
+  // Since there is no room for 'Name' in Advertising packet
+  Bluefruit.ScanResponse.addName();
+  
+  /* Start Advertising
+   * - Enable auto advertising if disconnected
+   * - Interval:  fast mode = 20 ms, slow mode = 152.5 ms
+   * - Timeout for fast mode is 30 seconds
+   * - Start(timeout) with timeout = 0 will advertise forever (until connected)
+   * 
+   * For recommended advertising interval
+   * https://developer.apple.com/library/content/qa/qa1931/_index.html   
+   */
+  Bluefruit.Advertising.restartOnDisconnect(true);
+  Bluefruit.Advertising.setInterval(32, 244);    // in unit of 0.625 ms
+  Bluefruit.Advertising.setFastTimeout(30);      // number of seconds in fast mode
+  Bluefruit.Advertising.start(0);                // 0 = Don't stop advertising after n seconds  
+}
+
 // loop() function -- runs repeatedly as long as board is on ---------------
 
 void loop() {
@@ -66,7 +114,7 @@ void loop() {
   serialPrintDateTime(now);
   serialPrintTemperature();
 
-  if( Serial.available() > 0 ) {
+  if( Serial.available() ) {
     String cmd = Serial.readString();
     cmd.trim();
     Serial.print("rx command: `");
@@ -75,18 +123,37 @@ void loop() {
     parseCommand(cmd);
   }
 
+  if( bleuart.available() ) {
+    colorWipe(strip.Color( 0, 0, 0), 1); // off
+    colorWipe(strip.Color( 0, 0, 255), 1); // LED indication while waiting for UART to fill
+    
+    char c_cmd[64] = {'\0'};
+    uint8_t na = bleuart.available();
+    uint8_t nr = bleuart.read(c_cmd, ( na < 64 ) ? na : 64 );
+    String cmd = String(c_cmd);
+    
+    cmd.trim();
+    Serial.print("BLE RX: `");
+    Serial.print(cmd);
+    Serial.println("`");
+    
+    parseCommand(cmd);
+    colorWipe(strip.Color( 0, 0, 0), 1); // off
+  }
   
   if (now < alarm) {
+    strip.setBrightness(3); // Set BRIGHTNESS low (max = 255)
     countdown(alarm);
   } else if ( now.unixtime() - alarm.unixtime() < LED_COUNT ) {
-    strip.setBrightness(127);
-    colorWipe(strip.Color( 0, 0, 0), 100); // off
-    colorWipe(strip.Color( 255, 140, 0), 100); // dark orange
+    colorWipe(strip.Color( 0, 0, 0), STANDARD_DELAY); // off
+    strip.setBrightness(64);
+    colorWipe(strip.Color( 255, 140, 0), STANDARD_DELAY); // dark orange
   } else if ( now.unixtime() - alarm.unixtime() < 60 ) {
-    strip.setBrightness(255);
     colorWipe(strip.Color( 0, 0, 0), 0); // off
+    strip.setBrightness(128);
     colorWipe(strip.Color( 255, 0, 0), 0); // red
   } else {
+    strip.setBrightness(3); // Set BRIGHTNESS low (max = 255)
     switch( display ) {
       case 'B': // binary
         binary(now);
@@ -109,8 +176,8 @@ void loop() {
 void countdown( DateTime t ) {
   Serial.print("counting down to: ");
   serialPrintDateTime(t);
-  colorWipe(strip.Color(  0,   127, 127), 32); // TODO constant
-  colorWipe(strip.Color(  0,   0, 0), 32); // off  
+  colorWipe(strip.Color(  0,   0, 0), STANDARD_DELAY); // off  
+  colorWipe(strip.Color(  0,   127, 127), STANDARD_DELAY); // TODO constant
 }
 
 // binary
@@ -127,7 +194,7 @@ void binary( DateTime t ) {
   Serial.print( G );
   Serial.print( "," );
   Serial.println( B );
-  colorWipe(strip.Color(R, G, B), 32);
+  colorWipe(strip.Color(R, G, B), STANDARD_DELAY);
 }
 
 // parseCommand
@@ -150,6 +217,9 @@ void parseCommand(String cmd) {
     case 'z': // snooze
       alarm = rtc.now() + TimeSpan(0,0,a.toInt(),0);
       break;
+    case '+': // add to existing alarm
+      alarm = alarm + TimeSpan(0,0,a.toInt(),0);
+      break;
     case 'E': // set Epoch time
       rtc.adjust(DateTime(a.toInt()));
       break;
@@ -171,11 +241,52 @@ void parseCommand(String cmd) {
     case 'b':
       strip.setBrightness(a.toInt()); // Set BRIGHTNESS (max = 255)
       break;
+    case '?':
+    case 'H':
+    case 'h':
+      usage();
     default:
       Serial.print("unrecognized function: `");
       Serial.print(f);
       Serial.println('`');
   }
+}
+
+// usage -- print command hints to both wired and BLE UARTs
+
+void usage() {
+  bleuart.println("?,h,H");
+  bleuart.println("\tprint this help dialog");
+  
+  bleuart.println("z minutes\t e.g.: `z 5`");
+  bleuart.println("\t set alarm 5 minutes from now");
+
+  bleuart.println("+ minutes\t e.g.: `+ 5`");
+  bleuart.println("\t add 5 minutes to existing alarm");
+
+  bleuart.println("b level\t e.g.: `b 255`");
+  bleuart.println("\t set brightness level");
+
+  bleuart.println("D Date String\t e.g.;`D Nov 15 2019`");
+  bleuart.println("\t set date (local timezone)");
+
+  bleuart.println("T Time String\t e.g.;`T 13:37:01`");
+  bleuart.println("\t set time (local timezone)");
+
+  bleuart.println("U hours\t e.g.;`U 8`");
+  bleuart.println("\t set UTC offset for local timezone");
+  bleuart.println("\t or daylight savings time");
+
+  bleuart.println("E seconds\t e.g.;`E 1573796625`");
+  bleuart.println("\t set time by Unix epoch seconds");
+
+  bleuart.println("d letter\t e.g.: `d r`");
+  bleuart.println("\t set default display type");
+  bleuart.println("\t\t b: color for HH:MM:SS");
+  bleuart.println("\t\t r: rainbow");
+  bleuart.println("\t\t t: test pattern (long)");
+    
+  
 }
 
 // serialPrintDateTime
