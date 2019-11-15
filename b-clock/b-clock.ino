@@ -23,6 +23,7 @@ RTC_DS3231 rtc;
 char display = 'B';
 DateTime alarm = DateTime( 0 );
 int8_t utc_offset = -8;
+int8_t brightness = 3;
 
 // TODO: add a verbose flag to enable/disable most of the Serial printing
 
@@ -30,6 +31,7 @@ int8_t utc_offset = -8;
 // setup() function -- runs once at startup --------------------------------
 
 void setup() {
+  pinMode(LED_RED, OUTPUT);
   strip.begin();           // INITIALIZE NeoPixel strip object (REQUIRED)
   strip.show();            // Turn OFF all pixels ASAP
   Serial.begin(9600);      // Start UART for debugging, etc.
@@ -61,6 +63,7 @@ void setup() {
 // post() function -- power-on self-test
 
 void post() {
+  digitalWrite(LED_RED, HIGH);
   Serial.println("b-clock power-on self-test");
   strip.setBrightness(8); // Set BRIGHTNESS low (max = 255)
   rainbow(1);
@@ -75,6 +78,7 @@ void post() {
     serialPrintDateTime(rtc.now());
   }
   alarm = rtc.now() + TimeSpan(0,0,0,5);
+  digitalWrite(LED_RED, LOW);
 }
 
 
@@ -108,24 +112,23 @@ void startAdv(void) {
 // loop() function -- runs repeatedly as long as board is on ---------------
 
 void loop() {
-  digitalToggle(LED_RED);  // Toggle LED to show activity
-
   DateTime now = rtc.now();
   serialPrintDateTime(now);
   serialPrintTemperature();
 
   if( Serial.available() ) {
+    digitalWrite(LED_RED, HIGH);
     String cmd = Serial.readString();
     cmd.trim();
     Serial.print("rx command: `");
     Serial.print(cmd);
     Serial.println("`");
     parseCommand(cmd);
+      digitalWrite(LED_RED, LOW);
   }
 
   if( bleuart.available() ) {
-    colorWipe(strip.Color( 0, 0, 0), 1); // off
-    colorWipe(strip.Color( 0, 0, 255), 1); // LED indication while waiting for UART to fill
+    digitalWrite(LED_RED, HIGH);
     
     char c_cmd[64] = {'\0'};
     uint8_t na = bleuart.available();
@@ -138,7 +141,7 @@ void loop() {
     Serial.println("`");
     
     parseCommand(cmd);
-    colorWipe(strip.Color( 0, 0, 0), 1); // off
+    digitalWrite(LED_RED, LOW);
   }
   
   if (now < alarm) {
@@ -153,7 +156,7 @@ void loop() {
     strip.setBrightness(128);
     colorWipe(strip.Color( 255, 0, 0), 0); // red
   } else {
-    strip.setBrightness(3); // Set BRIGHTNESS low (max = 255)
+    strip.setBrightness(brightness); // Set BRIGHTNESS low (max = 255)
     switch( display ) {
       case 'B': // binary
         binary(now);
@@ -215,31 +218,50 @@ void parseCommand(String cmd) {
 
   switch( f ) {
     case 'z': // snooze
-      alarm = rtc.now() + TimeSpan(0,0,a.toInt(),0);
+      alarm = rtc.now() + TimeSpan(a.toInt() * 60);
+      bleuart.print(rtc.now().timestamp(DateTime::TIMESTAMP_FULL));
+      bleuart.print("> alarm set for: ");
+      bleuart.println(alarm.timestamp(DateTime::TIMESTAMP_FULL));
       break;
     case '+': // add to existing alarm
-      alarm = alarm + TimeSpan(0,0,a.toInt(),0);
+      alarm = alarm + TimeSpan(a.toInt() * 60);
+      bleuart.print(rtc.now().timestamp(DateTime::TIMESTAMP_FULL));
+      bleuart.print("> alarm set for: ");
+      bleuart.println(alarm.timestamp(DateTime::TIMESTAMP_FULL));
       break;
     case 'E': // set Epoch time
       rtc.adjust(DateTime(a.toInt()));
+      bleuart.print(rtc.now().timestamp(DateTime::TIMESTAMP_FULL));
+      bleuart.println("> set by Unix epoch");
       break;
     case 'U': // set UTC offset
       rtc.adjust(DateTime(rtc.now().unixtime() - utc_offset * 3600));
       utc_offset = a.toInt();
       rtc.adjust(DateTime(rtc.now().unixtime() + utc_offset * 3600));
+      bleuart.print("set UTC offset to ");
+      bleuart.print(utc_offset);
+      bleuart.println(" hours");
       break;
     case 'D': // set (string) date e.g.: `Nov 15 2019`
       rtc.adjust(DateTime(a.c_str(), rtc.now().timestamp(DateTime::TIMESTAMP_TIME).c_str()));
+      bleuart.print(rtc.now().timestamp(DateTime::TIMESTAMP_FULL));
+      bleuart.println("> set local date");
+      bleuart.println("SET TIME BEFORE DATE DUE TO BUG");
+      
       break;
     case 'T': // set (string) time e.g: `14:31:42`
       rtc.adjust(DateTime(rtc.now().timestamp(DateTime::TIMESTAMP_DATE).c_str(), a.c_str()));
+      bleuart.print(rtc.now().timestamp(DateTime::TIMESTAMP_FULL));
+      bleuart.println("> set local time");
+      bleuart.println("SET DATE AFTER TIME DUE TO BUG");
       break;      
     case 'd':
       a.toUpperCase();
       display = a.charAt(0); // set default display type
       break;
     case 'b':
-      strip.setBrightness(a.toInt()); // Set BRIGHTNESS (max = 255)
+      brightness = a.toInt(); // set GLOBAL (persistent) brightness
+      strip.setBrightness(brightness); // Set BRIGHTNESS (max = 255)
       break;
     case '?':
     case 'H':
@@ -249,6 +271,7 @@ void parseCommand(String cmd) {
       Serial.print("unrecognized function: `");
       Serial.print(f);
       Serial.println('`');
+      usage();
   }
 }
 
