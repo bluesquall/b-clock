@@ -253,7 +253,6 @@ void parseCommand(String cmd) {
       rtc.adjust(DateTime(rtc.now().timestamp(DateTime::TIMESTAMP_DATE).c_str(), a.c_str()));
       bleuart.print(rtc.now().timestamp(DateTime::TIMESTAMP_FULL));
       bleuart.println("> set local time");
-      bleuart.println("SET DATE AFTER TIME DUE TO BUG");
       break;      
     case 'd':
       a.toUpperCase();
@@ -267,6 +266,7 @@ void parseCommand(String cmd) {
     case 'H':
     case 'h':
       usage();
+      break;
     default:
       Serial.print("unrecognized function: `");
       Serial.print(f);
